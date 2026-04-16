@@ -59,18 +59,8 @@ export async function pollActiveSessions(): Promise<PollResult> {
       console.log(`[poll] session ${session.id}: ${matches.length} matches found`)
       if (!matches.length) continue
 
-      // 4. Filter out matches we already have
-      const { data: existing } = await supabase
-        .from("session_games")
-        .select("match_id")
-        .eq("session_id", session.id)
-
-      const seenIds = new Set((existing ?? []).map((r: { match_id: string }) => r.match_id))
-      const newMatches = matches.filter(m => !seenIds.has(m.matchId))
-      if (!newMatches.length) continue
-
-      // 5. Insert new games
-      const rows = newMatches.map(m => ({
+      // 4. Upsert all matches (ignoreDuplicates: false so existing rows get updated with new columns)
+      const rows = matches.map(m => ({
         session_id:     session.id,
         user_id:        session.user_id,
         match_id:       m.matchId,
@@ -95,14 +85,14 @@ export async function pollActiveSessions(): Promise<PollResult> {
 
       const { error: insertErr } = await supabase
         .from("session_games")
-        .upsert(rows, { onConflict: "session_id,match_id", ignoreDuplicates: true })
+        .upsert(rows, { onConflict: "session_id,match_id", ignoreDuplicates: false })
 
       if (insertErr) {
         result.errors.push(`Session ${session.id}: ${insertErr.message}`)
         continue
       }
 
-      result.newGames += newMatches.length
+      result.newGames += matches.length
 
       // 6. Update aggregate counts on the session
       const wins   = matches.filter(m => m.win).length
