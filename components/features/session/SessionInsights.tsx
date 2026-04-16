@@ -107,7 +107,7 @@ const CHAMPION_ARCHETYPE: Record<string, Archetype> = {
   // Tank jg
   Vi: "TANK_JG", Amumu: "TANK_JG", Hecarim: "TANK_JG",
   Warwick: "TANK_JG", Jarvan: "TANK_JG", Sejuani: "TANK_JG",
-  Zac: "TANK_JG", Nunu: "TANK_JG", Diana: "TANK_JG",
+  Zac: "TANK_JG", Nunu: "TANK_JG",
 }
 
 // ─── Aggregation helpers ──────────────────────────────────────────────────────
