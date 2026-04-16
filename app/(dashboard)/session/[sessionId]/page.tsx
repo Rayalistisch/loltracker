@@ -315,18 +315,19 @@ export default async function SessionDetailPage({ params }: Props) {
             borderColor: "rgba(133,147,153,0.15)",
           }}
         >
-          {/* Table header */}
-          <div className="flex items-center gap-4 px-4 py-3 border-b border-white/5">
-            <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex-1">
+          {/* Table header — widths mirror GameRow exactly */}
+          <div className="flex items-center gap-4 px-4 py-3 border-b border-white/5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+            {/* Champion col spacer */}
+            <div className="w-44 shrink-0 text-muted-foreground font-black">
               Games ({games.length})
-            </h2>
-            <div className="hidden md:flex items-center gap-6 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 pr-8">
-              <span className="w-32 text-center">KDA</span>
-              <span className="w-20 text-center">CS</span>
-              <span className="w-20 text-center">Damage</span>
-              <span className="w-16 text-center">Vision</span>
-              <span className="w-14 text-center">Time</span>
             </div>
+            <div className="w-36 shrink-0 hidden md:block">KDA</div>
+            <div className="w-20 shrink-0 hidden md:block">CS</div>
+            <div className="w-20 shrink-0 hidden md:block">Damage</div>
+            <div className="w-16 shrink-0 hidden md:block">Vision</div>
+            <div className="w-14 shrink-0 text-right">Time</div>
+            {/* Spacer for expand chevron */}
+            <div className="ml-auto w-4 shrink-0" />
           </div>
 
           {/* Rows */}
