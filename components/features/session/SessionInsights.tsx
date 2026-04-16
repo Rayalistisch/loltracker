@@ -450,27 +450,36 @@ function generateTips(
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function StatBar({ label, value, max, color, display }: {
-  label: string; value: number | null; max: number; color: string; display: string
+function StatCircle({ label, value, max, color, display, status }: {
+  label: string; value: number | null; max: number; color: string; display: string; status: string
 }) {
   if (value == null) return null
-  const pct = Math.min(value / max, 1)
+  const pct   = Math.min(value / max, 1)
+  const r     = 28
+  const circ  = 2 * Math.PI * r
+  const arc   = circ * pct
+  const gap   = circ - arc
   return (
-    <div className="space-y-1.5">
-      <div className="flex justify-between text-sm">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-bold tabular-nums" style={{ color }}>{display}</span>
+    <div className="flex flex-col items-center gap-1.5 py-1">
+      <div className="relative" style={{ width: 72, height: 72 }}>
+        <svg viewBox="0 0 72 72" width="72" height="72" style={{ transform: "rotate(-90deg)" }}>
+          {/* Dashed background ring */}
+          <circle cx="36" cy="36" r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="5" strokeDasharray="3 4" />
+          {/* Colored arc */}
+          <circle
+            cx="36" cy="36" r={r} fill="none"
+            stroke={color} strokeWidth="5"
+            strokeDasharray={`${arc} ${gap}`}
+            strokeLinecap="round"
+            style={{ filter: `drop-shadow(0 0 3px ${color}90)` }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-base font-black tabular-nums" style={{ color }}>{display}</span>
+        </div>
       </div>
-      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
-        <div
-          className="h-full rounded-full"
-          style={{
-            width: `${Math.max(pct * 100, 2)}%`,
-            background: `linear-gradient(90deg, ${color}66, ${color})`,
-            boxShadow: `0 0 6px ${color}55`,
-          }}
-        />
-      </div>
+      <p className="text-xs font-bold text-foreground text-center leading-tight">{label}</p>
+      <p className="text-[10px] text-muted-foreground/70 text-center leading-tight">{status}</p>
     </div>
   )
 }
@@ -532,35 +541,38 @@ export function SessionInsights({ games, role, checkin, reflection }: SessionIns
         <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">
           Gemiddelde prestaties per game
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
           {isSupport ? (
             <>
-              <StatBar label="Vision score"   value={stats.vision}    max={80}    color={stats.vision    != null && stats.vision    >= 40 ? "#34d399" : stats.vision    != null && stats.vision    >= 25 ? "#fbbf24" : "#f87171"} display={stats.vision?.toFixed(0) ?? "—"} />
-              <StatBar label="Wards geplaatst" value={stats.wardsPlaced} max={40} color={stats.wardsPlaced != null && stats.wardsPlaced >= 15 ? "#34d399" : "#fb923c"} display={stats.wardsPlaced?.toFixed(0) ?? "—"} />
-              <StatBar label="Control wards"  value={stats.cw}         max={5}    color={stats.cw != null && stats.cw >= 2 ? "#34d399" : "#f87171"} display={stats.cw?.toFixed(1) ?? "—"} />
+              <StatCircle label="Vision"       value={stats.vision}      max={80}    color={stats.vision    != null && stats.vision    >= 40 ? "#34d399" : stats.vision    != null && stats.vision    >= 25 ? "#fbbf24" : "#f87171"} display={stats.vision?.toFixed(0) ?? "—"}       status={stats.vision    != null && stats.vision    >= 40 ? "Excellent" : stats.vision    != null && stats.vision    >= 25 ? "Average" : "Needs Work"} />
+              <StatCircle label="Wards"        value={stats.wardsPlaced} max={40}    color={stats.wardsPlaced != null && stats.wardsPlaced >= 15 ? "#34d399" : "#fb923c"}                                                           display={stats.wardsPlaced?.toFixed(0) ?? "—"} status={stats.wardsPlaced != null && stats.wardsPlaced >= 15 ? "Good" : "Needs Work"} />
+              <StatCircle label="Ctrl Wards"   value={stats.cw}          max={5}     color={stats.cw != null && stats.cw >= 2 ? "#34d399" : "#f87171"}                                                                              display={stats.cw?.toFixed(1) ?? "—"}          status={stats.cw != null && stats.cw >= 2 ? "Good" : "Needs Work"} />
               {stats.healShield != null && stats.healShield > 0 && (
-                <StatBar label="Heal + Shield" value={stats.healShield} max={15000} color={stats.healShield >= 5000 ? "#34d399" : "#fbbf24"} display={`${(stats.healShield/1000).toFixed(1)}k`} />
+                <StatCircle label="Heal+Shield" value={stats.healShield} max={15000} color={stats.healShield >= 5000 ? "#34d399" : "#fbbf24"}                                                                                       display={`${(stats.healShield/1000).toFixed(1)}k`} status={stats.healShield >= 5000 ? "Good" : "Average"} />
               )}
               {stats.ccScore != null && stats.ccScore > 0 && (
-                <StatBar label="CC applied"    value={stats.ccScore}   max={60}    color={stats.ccScore >= 20 ? "#34d399" : "#fbbf24"} display={`${stats.ccScore.toFixed(0)}s`} />
+                <StatCircle label="CC"          value={stats.ccScore}    max={60}    color={stats.ccScore >= 20 ? "#34d399" : "#fbbf24"}                                                                                            display={`${stats.ccScore.toFixed(0)}s`}       status={stats.ccScore >= 20 ? "Good" : "Average"} />
               )}
             </>
           ) : (
             <>
-              <StatBar label="CS / min"       value={stats.cspm}      max={10}    color={stats.cspm    != null && stats.cspm    >= 7 ? "#34d399" : stats.cspm    != null && stats.cspm    >= 5 ? "#fbbf24" : "#f87171"} display={stats.cspm?.toFixed(1) ?? "—"} />
-              <StatBar label="KDA ratio"      value={stats.kda}       max={6}     color={stats.kda     != null && stats.kda     >= 3 ? "#34d399" : stats.kda     != null && stats.kda     >= 2 ? "#fbbf24" : "#f87171"} display={stats.kda?.toFixed(2) ?? "—"} />
+              <StatCircle label="CS / min"     value={stats.cspm}        max={10}    color={stats.cspm    != null && stats.cspm    >= 7 ? "#34d399" : stats.cspm    != null && stats.cspm    >= 5 ? "#fbbf24" : "#f87171"} display={stats.cspm?.toFixed(1) ?? "—"}   status={stats.cspm    != null && stats.cspm    >= 7 ? "Excellent" : stats.cspm    != null && stats.cspm    >= 5 ? "Average" : "Needs Work"} />
+              <StatCircle label="KDA"          value={stats.kda}         max={6}     color={stats.kda     != null && stats.kda     >= 3 ? "#34d399" : stats.kda     != null && stats.kda     >= 2 ? "#fbbf24" : "#f87171"} display={stats.kda?.toFixed(1) ?? "—"}    status={stats.kda     != null && stats.kda     >= 3 ? "Excellent" : stats.kda     != null && stats.kda     >= 2 ? "Average" : "Needs Work"} />
               {stats.damage != null && (
-                <StatBar label="Damage"         value={stats.damage}    max={35000} color={stats.damage  != null && stats.damage  >= 20000 ? "#34d399" : stats.damage  != null && stats.damage  >= 12000 ? "#fbbf24" : "#f87171"} display={`${(stats.damage/1000).toFixed(1)}k`} />
+                <StatCircle label="Damage"     value={stats.damage}      max={35000} color={stats.damage  != null && stats.damage  >= 20000 ? "#34d399" : stats.damage  != null && stats.damage  >= 12000 ? "#fbbf24" : "#f87171"} display={`${(stats.damage/1000).toFixed(1)}k`} status={stats.damage != null && stats.damage >= 20000 ? "Excellent" : stats.damage != null && stats.damage >= 12000 ? "Average" : "Needs Work"} />
               )}
-              <StatBar label="Vision score"   value={stats.vision}    max={60}    color={stats.vision  != null && stats.vision  >= 25 ? "#34d399" : "#f87171"} display={stats.vision?.toFixed(0) ?? "—"} />
+              <StatCircle label="Vision"       value={stats.vision}      max={60}    color={stats.vision  != null && stats.vision  >= 25 ? "#34d399" : "#f87171"}                                                           display={stats.vision?.toFixed(0) ?? "—"} status={stats.vision  != null && stats.vision  >= 25 ? "Good" : "Needs Work"} />
             </>
           )}
-          <StatBar label="Deaths per game" value={stats.deaths}   max={10}    color={stats.deaths  != null && stats.deaths  <= 3 ? "#34d399" : stats.deaths  != null && stats.deaths  <= 5 ? "#fbbf24" : "#f87171"} display={stats.deaths?.toFixed(1) ?? "—"} />
+          <StatCircle label="Deaths"         value={stats.deaths}        max={10}    color={stats.deaths  != null && stats.deaths  <= 3 ? "#34d399" : stats.deaths  != null && stats.deaths  <= 5 ? "#fbbf24" : "#f87171"} display={stats.deaths?.toFixed(1) ?? "—"} status={stats.deaths  != null && stats.deaths  <= 3 ? "Excellent" : stats.deaths  != null && stats.deaths  <= 5 ? "Average" : "Needs Work"} />
           {stats.gpm != null && (
-            <StatBar label="Gold / min"    value={stats.gpm}      max={450}   color={stats.gpm     >= 350 ? "#34d399" : stats.gpm >= 280 ? "#fbbf24" : "#f87171"} display={`${stats.gpm.toFixed(0)}`} />
+            <StatCircle label="Gold / min"   value={stats.gpm}           max={450}   color={stats.gpm     >= 350 ? "#34d399" : stats.gpm >= 280 ? "#fbbf24" : "#f87171"}                                                   display={`${stats.gpm.toFixed(0)}`}       status={stats.gpm >= 350 ? "Excellent" : stats.gpm >= 280 ? "Average" : "Needs Work"} />
           )}
         </div>
       </div>
+
+      {/* ── Champion fit + Tips — side by side ───────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
       {/* ── Champion fit ──────────────────────────────────────────────────── */}
       {uniqueChamps.length > 0 && (
@@ -698,7 +710,7 @@ export function SessionInsights({ games, role, checkin, reflection }: SessionIns
 
       {/* ── Next session tips ─────────────────────────────────────────────── */}
       {tips.length > 0 && (
-        <div className="rounded-xl border p-5 space-y-4" style={GLASS}>
+        <div className="rounded-xl border p-5 space-y-4 h-fit" style={GLASS}>
           <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">
             Focus voor de volgende sessie
           </p>
@@ -737,6 +749,8 @@ export function SessionInsights({ games, role, checkin, reflection }: SessionIns
           </div>
         </div>
       )}
+
+      </div> {/* end side-by-side grid */}
     </div>
   )
 }
