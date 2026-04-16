@@ -126,7 +126,7 @@ export default async function SessionDetailPage({ params }: Props) {
         <Section title={`Games (${games.length})`}>
           <div className="space-y-1.5">
             {games.map((game) => (
-              <GameRow key={game.id} game={game} />
+              <GameRow key={game.id} game={game} role={checkin?.plannedRoles?.[0]} />
             ))}
           </div>
         </Section>
