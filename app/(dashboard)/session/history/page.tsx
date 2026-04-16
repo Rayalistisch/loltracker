@@ -16,6 +16,26 @@ export default async function SessionHistoryPage() {
 
   const sessions = await getRecentSessions(user.id, 50)
 
+  // Fetch most-played champion per session
+  const sessionIds = sessions.map(s => s.id)
+  const topChampionMap: Record<string, string> = {}
+  if (sessionIds.length > 0) {
+    const { data: gameRows } = await supabase
+      .from("session_games")
+      .select("session_id, champion")
+      .in("session_id", sessionIds)
+      .not("champion", "is", null)
+    const counts: Record<string, Record<string, number>> = {}
+    for (const g of gameRows ?? []) {
+      if (!g.champion) continue
+      if (!counts[g.session_id]) counts[g.session_id] = {}
+      counts[g.session_id][g.champion] = (counts[g.session_id][g.champion] ?? 0) + 1
+    }
+    for (const [sid, champcounts] of Object.entries(counts)) {
+      topChampionMap[sid] = Object.entries(champcounts).sort((a, b) => b[1] - a[1])[0][0]
+    }
+  }
+
   const totalWins   = sessions.reduce((s, x) => s + (x.gamesWon ?? 0), 0)
   const totalLosses = sessions.reduce((s, x) => s + (x.gamesLost ?? 0), 0)
   const totalGames  = sessions.reduce((s, x) => s + (x.actualGames ?? 0), 0)
@@ -82,7 +102,7 @@ export default async function SessionHistoryPage() {
           {/* Session rows */}
           <div className="space-y-1.5">
             {sessions.map((session) => (
-              <SessionCard key={session.id} session={session} />
+              <SessionCard key={session.id} session={session} topChampion={topChampionMap[session.id]} />
             ))}
           </div>
         </>

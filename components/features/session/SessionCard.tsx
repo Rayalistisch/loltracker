@@ -10,7 +10,8 @@ import type { PlayerSession } from "@/types/domain"
 import { useState } from "react"
 
 interface SessionCardProps {
-  session: PlayerSession
+  session:      PlayerSession
+  topChampion?: string  // most-played champion from session_games, fallback when no check-in pool
 }
 
 const TILT_LABEL: Record<string, { label: string; cls: string }> = {
@@ -81,7 +82,7 @@ function ChampPortrait({ name, isWin }: { name: string; isWin: boolean }) {
   )
 }
 
-export function SessionCard({ session }: SessionCardProps) {
+export function SessionCard({ session, topChampion }: SessionCardProps) {
   const wins    = session.gamesWon ?? 0
   const losses  = session.gamesLost ?? 0
   const total   = session.actualGames ?? wins + losses
@@ -103,7 +104,7 @@ export function SessionCard({ session }: SessionCardProps) {
   const tiltCfg = tiltStatus ? TILT_LABEL[tiltStatus] : null
 
   const championPool = session.preCheckin?.championPool ?? []
-  const primaryChamp = championPool[0] ?? null
+  const primaryChamp = championPool[0] ?? topChampion ?? null
   const goal         = session.preCheckin?.goal ?? null
   const goalLabel    = goal ? SESSION_GOALS.find(g => g.value === goal)?.label : null
   const mentalState  = session.preCheckin?.mentalState ?? null
