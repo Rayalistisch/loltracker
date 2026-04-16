@@ -5,8 +5,9 @@ import { formatDurationSeconds, formatRelative } from "@/lib/utils/format"
 import { SESSION_GOALS } from "@/lib/utils/lol-constants"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
-import { ArrowLeft, Calendar, Clock, Target, Brain, TrendingUp, TrendingDown } from "lucide-react"
+import { ArrowLeft, Calendar, Clock, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { GameRow } from "@/components/features/session/GameRow"
 
 interface Props {
   params: Promise<{ sessionId: string }>
@@ -23,6 +24,14 @@ export default async function SessionDetailPage({ params }: Props) {
 
   const session = await getSessionById(sessionId, user.id)
   if (!session) notFound()
+
+  // Fetch individual games for this session
+  const { data: games } = await supabase
+    .from("session_games")
+    .select("*")
+    .eq("session_id", sessionId)
+    .eq("user_id", user.id)
+    .order("played_at", { ascending: false })
 
   const checkin    = session.preCheckin
   const reflection = session.postReflection
@@ -111,6 +120,17 @@ export default async function SessionDetailPage({ params }: Props) {
           </span>
         )}
       </div>
+
+      {/* Individual games */}
+      {games && games.length > 0 && (
+        <Section title={`Games (${games.length})`}>
+          <div className="space-y-1.5">
+            {games.map((game) => (
+              <GameRow key={game.id} game={game} />
+            ))}
+          </div>
+        </Section>
+      )}
 
       {/* Pre-game check-in */}
       {checkin && (
