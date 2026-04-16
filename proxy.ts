@@ -17,11 +17,16 @@ const PROTECTED_PREFIXES = [
 const AUTH_ROUTES = ["/login", "/register", "/forgot-password", "/reset-password"]
 
 export async function proxy(request: NextRequest) {
+  // If env vars are missing (e.g. Vercel deployment without vars set), skip auth
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {
