@@ -69,12 +69,19 @@ export default async function SessionDetailPage({ params }: Props) {
   const session = await getSessionById(sessionId, user.id)
   if (!session) notFound()
 
-  const { data: games } = await supabase
-    .from("session_games")
-    .select("*")
-    .eq("session_id", sessionId)
-    .eq("user_id", user.id)
-    .order("played_at", { ascending: false })
+  const [{ data: games }, { data: profileRank }] = await Promise.all([
+    supabase
+      .from("session_games")
+      .select("*")
+      .eq("session_id", sessionId)
+      .eq("user_id", user.id)
+      .order("played_at", { ascending: false }),
+    supabase
+      .from("player_profiles")
+      .select("current_rank")
+      .eq("id", user.id)
+      .single(),
+  ])
 
   const checkin    = session.preCheckin
   const reflection = session.postReflection
@@ -346,6 +353,7 @@ export default async function SessionDetailPage({ params }: Props) {
           role={role}
           checkin={checkin ?? null}
           reflection={reflection ?? null}
+          rankAtStart={session.rankAtStart ?? profileRank?.current_rank ?? null}
         />
       )}
 

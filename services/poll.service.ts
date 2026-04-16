@@ -5,7 +5,7 @@
  */
 
 import { createClient as createServiceClient } from "@supabase/supabase-js"
-import { getPuuid, getMatchesSince } from "@/services/riot.service"
+import { getPuuid, getMatchesSince, getRankedStats } from "@/services/riot.service"
 
 function serviceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -106,6 +106,21 @@ export async function pollActiveSessions(): Promise<PollResult> {
           actual_games: wins + losses,
         })
         .eq("id", session.id)
+
+      // 7. Refresh player rank from Riot API and update profile
+      try {
+        const ranked = await getRankedStats(puuid, region)
+        if (ranked) {
+          await supabase
+            .from("player_profiles")
+            .update({ current_rank: ranked.tier })
+            .eq("id", session.user_id)
+          console.log(`[poll] session ${session.id}: rank updated to ${ranked.tier} ${ranked.division}`)
+        }
+      } catch (rankErr) {
+        // Non-fatal — rank update failure shouldn't break the poll
+        console.warn(`[poll] session ${session.id}: rank update failed:`, rankErr)
+      }
 
     } catch (err) {
       result.errors.push(`Session ${session.id}: ${err instanceof Error ? err.message : String(err)}`)

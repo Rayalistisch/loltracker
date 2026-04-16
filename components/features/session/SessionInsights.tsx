@@ -31,6 +31,7 @@ interface SessionInsightsProps {
   role: string | undefined
   checkin: PreGameCheckin | null
   reflection: PostGameReflection | null
+  rankAtStart?: string | null
 }
 
 // ─── Champion archetype database ──────────────────────────────────────────────
@@ -448,6 +449,283 @@ function generateTips(
     .slice(0, 4)
 }
 
+// ─── Rank climb engine ────────────────────────────────────────────────────────
+
+type RankTier = "IRON" | "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | "EMERALD" | "DIAMOND" | "MASTER"
+
+const TIER_ORDER: RankTier[] = ["IRON","BRONZE","SILVER","GOLD","PLATINUM","EMERALD","DIAMOND","MASTER"]
+const NEXT_TIER: Record<RankTier, string> = {
+  IRON: "Bronze", BRONZE: "Silver", SILVER: "Gold", GOLD: "Platinum",
+  PLATINUM: "Emerald", EMERALD: "Diamond", DIAMOND: "Master", MASTER: "Grandmaster",
+}
+
+function parseRankTier(rank: string): RankTier | null {
+  const upper = rank.toUpperCase()
+  return (TIER_ORDER.find(t => upper.startsWith(t)) ?? null)
+}
+
+interface TierBenchmarks {
+  cspm:    number   // minimum CS/min to climb
+  deaths:  number   // maximum deaths to climb
+  vision:  number   // minimum vision score to climb
+  kdaMin:  number   // minimum KDA
+  description: string  // what this tier is really about
+  gaps: string[]    // most common skill gaps at this tier
+}
+
+const TIER_BENCHMARKS: Record<RankTier, TierBenchmarks> = {
+  IRON:     { cspm: 4,   deaths: 8,   vision: 10, kdaMin: 1.5, description: "Basis mechanics",          gaps: ["Te veel sterven", "Geen CS prioriteit", "Alleen chasen", "Geen recall discipline"] },
+  BRONZE:   { cspm: 5,   deaths: 7,   vision: 12, kdaMin: 2.0, description: "Trade mechanics",           gaps: ["Slechte wave state", "Te overextended", "Geen vision", "Verkeerde item builds"] },
+  SILVER:   { cspm: 6,   deaths: 6,   vision: 15, kdaMin: 2.5, description: "Wave management",           gaps: ["Geen wave freeze/reset", "Niet roamen", "Objectief timing ontbreekt", "Te kleine champion pool"] },
+  GOLD:     { cspm: 7,   deaths: 5,   vision: 20, kdaMin: 3.0, description: "Macro & objective control", gaps: ["Geen roam timing", "Objectives niet prioriteren", "Slechte positionering in fights", "Vision control ontbreekt"] },
+  PLATINUM: { cspm: 7.5, deaths: 4,   vision: 25, kdaMin: 3.5, description: "Jungle tracking & tempo",   gaps: ["Geen jungle tracking", "Slechte wave management advanced", "Te weinig early game leads", "Inconsistente laning"] },
+  EMERALD:  { cspm: 8,   deaths: 3.5, vision: 30, kdaMin: 4.0, description: "Macro & split push",        gaps: ["Slechte macro beslissingen", "Geen split push kennis", "Proactieve vision ontbreekt", "Inconsistente champion mastery"] },
+  DIAMOND:  { cspm: 8.5, deaths: 3,   vision: 35, kdaMin: 4.5, description: "Micro optimalisatie",       gaps: ["Micro trade patterns", "Matchup kennis", "Advanced jungle tracking", "Perfect wave execution"] },
+  MASTER:   { cspm: 9,   deaths: 2.5, vision: 40, kdaMin: 5.0, description: "Absolute consistentie",     gaps: ["Elke game optimal spelen", "Champion mastery op hoogste niveau", "Mentale consistentie"] },
+}
+
+interface ClimbInsight {
+  category: string
+  title: string
+  body: string
+  priority: "critical" | "high" | "medium"
+  statLine?: string
+  target?: string
+  icon: "cs" | "vision" | "deaths" | "damage" | "mental" | "cc" | "self" | "heal"
+}
+
+function generateClimbPlan(
+  stats: AvgStats,
+  role: string | undefined,
+  tier: RankTier | null,
+  uniqueChamps: string[],
+  winRate: number,
+): ClimbInsight[] {
+  const insights: ClimbInsight[] = []
+  const r = (role ?? "").toUpperCase()
+  const isSupport = r === "SUPPORT"
+  const bench = tier ? TIER_BENCHMARKS[tier] : TIER_BENCHMARKS["SILVER"]
+  const nextRank = tier ? NEXT_TIER[tier] : null
+
+  // ── 1. Deaths — universal gate to climb ────────────────────────────────────
+  if (stats.deaths != null && stats.deaths > bench.deaths) {
+    const excess = (stats.deaths - bench.deaths).toFixed(1)
+    insights.push({
+      category: "Survival",
+      priority: "critical",
+      title: `${excess} deaths te veel per game`,
+      body: `${tier ?? "Jouw"} spelers die klimmen naar ${nextRank ?? "de volgende rank"} sterven gemiddeld ≤${bench.deaths}x per game. Jij sterft ${stats.deaths.toFixed(1)}x. Concreet: recall bij 40% HP, ward voor je roamt, trade alleen met wave advantage. Elke vermeden death = 300g minder voor je tegenstander.`,
+      statLine: `${stats.deaths.toFixed(1)} deaths gem.`,
+      target: `Doel: ≤${bench.deaths}`,
+      icon: "deaths",
+    })
+  }
+
+  // ── 2. CS — for non-supports ────────────────────────────────────────────────
+  if (!isSupport && stats.cspm != null && stats.cspm < bench.cspm) {
+    const gap = (bench.cspm - stats.cspm).toFixed(1)
+    insights.push({
+      category: "Farming",
+      priority: "critical",
+      title: `+${gap} CS/min kan je ${nextRank ?? "hoger"} brengen`,
+      body: `${bench.cspm} CS/min is de drempel voor ${nextRank ?? "de volgende rank"}. Jij haalt ${stats.cspm.toFixed(1)}. Dat verschil is ±${Math.round(parseFloat(gap) * 30)} gemiste CS per game — dat is een volledig item component. Oefen 10 min per dag in Practice Tool, focus op last-hitting zonder abilities.`,
+      statLine: `${stats.cspm.toFixed(1)} CS/min`,
+      target: `Doel: ${bench.cspm}+`,
+      icon: "cs",
+    })
+  }
+
+  // ── 3. Vision — especially mid/gold+ ───────────────────────────────────────
+  if (!isSupport && stats.vision != null && stats.vision < bench.vision) {
+    insights.push({
+      category: "Vision",
+      priority: (tier === "GOLD" || tier === "PLATINUM" || tier === "EMERALD") ? "high" : "medium",
+      title: "Vision control is de verborgen ladder naar hoger ELO",
+      body: `Doel voor ${nextRank ?? "hoger"}: ≥${bench.vision} vision score. Jij haalt ${stats.vision.toFixed(0)}. Simpel systeem: upgrade trinket op level 9, koop 1 control ward per base (75g), ward dragon/baron 1 min voor spawn. Wards winnen games zonder dat je beter hoeft te spelen.`,
+      statLine: `${stats.vision.toFixed(0)} vision score`,
+      target: `Doel: ${bench.vision}+`,
+      icon: "vision",
+    })
+  }
+  if (isSupport && stats.vision != null && stats.vision < bench.vision + 20) {
+    insights.push({
+      category: "Vision",
+      priority: "critical",
+      title: "Als support: vision is jouw primaire statistiek",
+      body: `Vision score ${stats.vision.toFixed(0)} is te laag voor ${nextRank ?? "hoger"}. Support spelers die klimmen ward elke base (tri-bush, river, pixel brush), upgraden trinket op level 9 en kopen minimaal 2 control wards per game. Doel: ${bench.vision + 20}+ vision score.`,
+      statLine: `${stats.vision.toFixed(0)} vision score`,
+      target: `Doel: ${bench.vision + 20}+`,
+      icon: "vision",
+    })
+  }
+
+  // ── 4. KDA ─────────────────────────────────────────────────────────────────
+  if (stats.kda != null && stats.kda < bench.kdaMin) {
+    insights.push({
+      category: "Impactvol spelen",
+      priority: "high",
+      title: `KDA van ${stats.kda.toFixed(2)} verraadt onnodige risico's`,
+      body: `${nextRank ?? "Hogere"} spelers hebben een KDA van ≥${bench.kdaMin}. Focus op: alleen engagen met een duidelijk voordeel, niet achter de vijand aan lopen als de fight gewonnen is, en recalls nemen bij laag HP in plaats van risico nemen voor 1 extra kill.`,
+      statLine: `${stats.kda.toFixed(2)} KDA`,
+      target: `Doel: ${bench.kdaMin}+`,
+      icon: "deaths",
+    })
+  }
+
+  // ── 5. Role-specific macro ──────────────────────────────────────────────────
+  if (r === "JUNGLE") {
+    if (tier === "SILVER" || tier === "GOLD") {
+      insights.push({
+        category: "Jungle Macro",
+        priority: "high",
+        title: "Objective timer discipline: de #1 onderscheider in jouw rank",
+        body: `Silver/Gold junglers verliezen de meeste games door objectives te missen. Systeem: zet timer bij dragon/baron kill, rally je team 30s voor spawn, smite pas wanneer de objective ≤1500 HP heeft. Prioriteit: Dragon > Rift Herald (voor 14 min) > Baron (na 20 min).`,
+        icon: "self",
+      })
+    }
+    if (tier === "PLATINUM" || tier === "EMERALD") {
+      insights.push({
+        category: "Jungle Tracking",
+        priority: "high",
+        title: "Vijandelijke jungler tracken verhoogt je impactscore",
+        body: `Noteer bij game start via welke zijde de vijand start (check laners voor early invade). Als je hun eerste kamp ziet, weet je hun rotatie. Ward de jungle kruising aan de tegenovergestelde zijde. Dit geeft je gratis invades en counter-ganks.`,
+        icon: "vision",
+      })
+    }
+  }
+
+  if (r === "MID") {
+    if (tier === "SILVER" || tier === "GOLD") {
+      insights.push({
+        category: "Mid Macro",
+        priority: "high",
+        title: "Roam timing na wave push is jouw klimsleutel",
+        body: `Push je wave naar de vijandelijke toren VOOR je roamt. Als je roamt met een frozen/slow-push wave, verlies je CS én pressure tegelijk. Na een succesvolle roam: teleporteer terug via de jungle aan jouw kant om XP en CS te pakken.`,
+        icon: "cs",
+      })
+    }
+  }
+
+  if (r === "TOP") {
+    if (tier === "SILVER" || tier === "GOLD" || tier === "PLATINUM") {
+      insights.push({
+        category: "Top Macro",
+        priority: "medium",
+        title: "Teleport als macro tool, niet als redmiddel",
+        body: `Top laners die klimmen gebruiken Teleport proactief: botlane fight zien → TP voor het begint, niet nadat het al verloren is. Na 14 min: gebruik TP om Drake fights te joinen. Win je lane? Push en TP voor de eerste team-objective, niet voor een achter-staan botlane.`,
+        icon: "self",
+      })
+    }
+  }
+
+  if (r === "BOTTOM") {
+    if (stats.cspm != null && stats.cspm < bench.cspm) {
+      insights.push({
+        category: "ADC Farming",
+        priority: "high",
+        title: "Farm leads zijn de snelste weg naar item voordeel",
+        body: `ADC laning draait om CS boven alles. Regel: als je niet veilig kunt aanvallen, farm onder toren. 2 toren CS + 3 jungle minions = een farm wave. Elke 15 gemiste CS is een Long Sword verloren. Doel voor ${nextRank ?? "hoger"}: ${bench.cspm}+ CS/min.`,
+        icon: "cs",
+      })
+    }
+  }
+
+  // ── 6. Champion pool advice ─────────────────────────────────────────────────
+  if (uniqueChamps.length > 3) {
+    insights.push({
+      category: "Champion Pool",
+      priority: "medium",
+      title: `${uniqueChamps.length} champions gespeeld — te breed voor consistente groei`,
+      body: `Data toont: spelers die klimmen beheersen 2-3 champions op hoog niveau. Kies 1 main en 1 counter-pick. Grotere champion pool = langzamere mastery groei. Kies flex picks die in meerdere team composities werken zodat je niet afhankelijk bent van bans.`,
+      icon: "self",
+    })
+  }
+
+  // ── 7. Role-specific advanced macro (always fires) ─────────────────────────
+  if (isSupport) {
+    if ((stats.vision ?? 0) >= 40) {
+      insights.push({
+        category: "Support Macro",
+        priority: "medium",
+        title: "Goede vision — schaal nu naar proactieve roams",
+        body: `Je vision control is sterk. De volgende stap: roam naar mid na elke lane push als je trinket op cooldown staat. Een succesvolle roam mid = carry snowball + globale map pressure. Timing: push bot wave → roam naar mid river → keer terug via jungle voor CS.`,
+        icon: "vision",
+      })
+    }
+    insights.push({
+      category: "Support Klimstrategie",
+      priority: "medium",
+      title: "CC timing is het verschil tussen Gold en Emerald",
+      body: `In hogere ranks: gebruik CC niet reactief maar proactief. Engage WANNEER de vijand een ability mist (flashed, missed skillshot). Pre-position in bushes voor gratis engage angles. Communiceer engage met ping 1-2s voor je de fight start zodat je carry mee kan gaan.`,
+      icon: "cc",
+    })
+  } else if (r === "JUNGLE") {
+    insights.push({
+      category: "Jungle Klimstrategie",
+      priority: "medium",
+      title: "Clear efficiency bepaalt wie de sterkste jungler is na 10 min",
+      body: `Full clear in ≤3:30 = je bent level 6 voor de vijand en hebt Dragon prio. Route: Red → Krugs → Raptors → Wolves → Blue → Gromp → Scuttle. Elke seconde verspild in jungle = minder ganks en items. Timer je smite voor Scuttle Crab (2500 HP).`,
+      icon: "cs",
+    })
+  } else if (r === "MID") {
+    insights.push({
+      category: "Mid Klimstrategie",
+      priority: "medium",
+      title: "Mid dominantie komt van wave controle, niet van kills",
+      body: `Freeze wave voor jouw tower wanneer je een lead hebt — dit dwingt de vijand mid te blijven en blokkeert hun roams. Slow-push bij level 6/9/13 power spikes: een grote wave = toren schade + gratis back voor items. Roam dan pas als je wave bounced richting vijand.`,
+      icon: "cs",
+    })
+  } else if (r === "TOP") {
+    insights.push({
+      category: "Top Klimstrategie",
+      priority: "medium",
+      title: "Splitpush is de onzichtbare klimtool van Top lane",
+      body: `Na eerste item: push side lane wanneer je team geen fight zoekt. Als 3 vijanden jou volgen, is je team 4v2 ergens anders. Maak dit zichtbaar met pings. Win je 1v1? Push toren en recall. Verlies je 1v1? Stop met pushen en speel teamfight top.`,
+      icon: "damage",
+    })
+  } else if (r === "BOTTOM") {
+    insights.push({
+      category: "ADC Klimstrategie",
+      priority: "medium",
+      title: "Positionering in teamfights: de grootste ADC skill gap",
+      body: `In teamfights: aanval altijd de dichtstbijzijnde vijand — niet de backline jagen terwijl je doodgaat. Auto-attack reset: gebruik elke ability + direct auto voor maximale DPS. Na een fight: push naar de volgende objective, niet terug naar base voor 200g extra.`,
+      icon: "damage",
+    })
+  } else {
+    insights.push({
+      category: "Algemene Klimstrategie",
+      priority: "medium",
+      title: "Consistentie overtreft mechanische skill in elk rank",
+      body: `De meest onderschatte factor in ranked: hetzelfde systeem elke game. Vaste champion pool (2-3 max), vaste pre-game routine, vaste stop condition. Spelers die klimmen verliezen minder van fouten en meer van pech — elimineer de fouten eerst.`,
+      icon: "self",
+    })
+  }
+
+  // ── 8. Tier-specific gap insight ────────────────────────────────────────────
+  if (tier) {
+    const bench2 = TIER_BENCHMARKS[tier]
+    insights.push({
+      category: `${tier.charAt(0) + tier.slice(1).toLowerCase()} → ${nextRank ?? "hoger"}`,
+      priority: "medium",
+      title: `De #1 skill gap in ${tier.charAt(0) + tier.slice(1).toLowerCase()}: ${bench2.description}`,
+      body: `Meest voorkomende fouten in ${tier.charAt(0) + tier.slice(1).toLowerCase()}: ${bench2.gaps.slice(0, 3).join(", ")}. Focus op één punt per sessie — niet alles tegelijk. Kies het punt dat het vaakst voor verlies zorgt en fix dat eerst voor je verder gaat.`,
+      icon: "self",
+    })
+  } else {
+    insights.push({
+      category: "Rank Progressie",
+      priority: "medium",
+      title: "Voeg je rank toe in profiel voor gepersonaliseerde klimanalyse",
+      body: `Met je huidige rank kunnen we je stats afzetten tegen de specifieke drempels voor jouw ELO. Vul je rank in via Profiel → Instellingen zodat toekomstige sessies gerichte adviezen geven per tier.`,
+      icon: "self",
+    })
+  }
+
+  // Sort: critical first, then high, then medium. Cap at 5.
+  const order = { critical: 0, high: 1, medium: 2 }
+  return insights.sort((a, b) => order[a.priority] - order[b.priority]).slice(0, 5)
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function StatCircle({ label, value, max, color, display, status }: {
@@ -497,7 +775,7 @@ const TIP_ICON = {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function SessionInsights({ games, role, checkin, reflection }: SessionInsightsProps) {
+export function SessionInsights({ games, role, checkin, reflection, rankAtStart }: SessionInsightsProps) {
   if (!games.length) return null
 
   const stats   = computeAvg(games)
@@ -515,6 +793,11 @@ export function SessionInsights({ games, role, checkin, reflection }: SessionIns
     if (g.champion) champCounts[g.champion] = (champCounts[g.champion] ?? 0) + 1
   }
   const uniqueChamps = Object.entries(champCounts).sort((a, b) => b[1] - a[1]).map(([c]) => c)
+
+  // Rank climb plan
+  const tier       = rankAtStart ? parseRankTier(rankAtStart) : null
+  const nextRank   = tier ? NEXT_TIER[tier] : null
+  const climbPlan  = generateClimbPlan(stats, role, tier, uniqueChamps, winRate)
 
   const GLASS: React.CSSProperties = {
     background: "rgba(30,31,37,0.7)",
@@ -751,6 +1034,75 @@ export function SessionInsights({ games, role, checkin, reflection }: SessionIns
       )}
 
       </div> {/* end side-by-side grid */}
+
+      {/* ── Rank climb plan ──────────────────────────────────────────────────── */}
+      {climbPlan.length > 0 && (
+        <div className="rounded-xl border p-5 space-y-4" style={GLASS}>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+              Klim naar {nextRank ?? "de volgende rank"}
+            </p>
+            {tier && (
+              <span
+                className="text-[11px] font-black uppercase tracking-widest px-2 py-0.5 border"
+                style={{ borderColor: "#4cd6ff30", color: "#4cd6ff", background: "#4cd6ff08" }}
+              >
+                {tier.charAt(0) + tier.slice(1).toLowerCase()} → {nextRank ?? "hoger"}
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            {climbPlan.map((insight, i) => {
+              const accent =
+                insight.priority === "critical" ? "#f87171" :
+                insight.priority === "high"     ? "#fb923c" : "#4cd6ff"
+              return (
+                <div
+                  key={i}
+                  className="rounded-lg border p-4"
+                  style={{
+                    background: `linear-gradient(135deg, ${accent}06, rgba(14,15,20,0.9))`,
+                    borderColor: `${accent}20`,
+                    borderLeft: `3px solid ${accent}`,
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className="text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 border"
+                        style={{ borderColor: `${accent}30`, color: accent, background: `${accent}08` }}
+                      >
+                        {insight.category}
+                      </span>
+                      {insight.priority === "critical" && (
+                        <span
+                          className="text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 border"
+                          style={{ borderColor: "#f8717140", color: "#f87171", background: "#f8717108" }}
+                        >
+                          Kritiek
+                        </span>
+                      )}
+                    </div>
+                    {insight.statLine && insight.target && (
+                      <div className="flex items-center gap-2 text-xs shrink-0">
+                        <span className="tabular-nums" style={{ color: accent }}>{insight.statLine}</span>
+                        <span className="text-muted-foreground/50">→</span>
+                        <span className="font-bold text-foreground/70">{insight.target}</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-sm font-black text-foreground uppercase tracking-wide mb-1.5">
+                    {insight.title}
+                  </p>
+                  <p className="text-sm text-foreground/75 leading-relaxed">{insight.body}</p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
