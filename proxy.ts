@@ -16,7 +16,7 @@ const PROTECTED_PREFIXES = [
 // Auth routes — redirect to dashboard if already authenticated
 const AUTH_ROUTES = ["/login", "/register", "/forgot-password", "/reset-password"]
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
