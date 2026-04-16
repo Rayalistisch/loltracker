@@ -88,25 +88,6 @@ function ArcGauge({ value, label, quality }: { value: string; label: string; qua
   )
 }
 
-// ─── Stat bar ─────────────────────────────────────────────────────────────────
-
-function StatBar({ label, value, pct, color }: { label: string; value: string; pct: number; color: string }) {
-  return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-xs">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-semibold tabular-nums text-foreground">{value}</span>
-      </div>
-      <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-        <div className="h-full rounded-full" style={{
-          width: `${Math.max(pct * 100, 2)}%`,
-          background: `linear-gradient(90deg, ${color}88, ${color})`,
-          boxShadow: `0 0 6px ${color}55`,
-        }} />
-      </div>
-    </div>
-  )
-}
 
 // ─── Tip engine ───────────────────────────────────────────────────────────────
 
@@ -172,32 +153,6 @@ function ChampIcon({ name }: { name: string }) {
   )
 }
 
-// ─── Stat chip (mini glass card) ─────────────────────────────────────────────
-
-function StatChip({ label, value, color, sublabel }: {
-  label: string; value: string; color: string; sublabel?: string
-}) {
-  return (
-    <div
-      className="rounded-xl p-3 flex flex-col gap-1 border"
-      style={{
-        background: `linear-gradient(135deg, ${color}10 0%, rgba(20,21,26,0.8) 100%)`,
-        borderColor: `${color}25`,
-        boxShadow: `inset 0 1px 0 ${color}15`,
-      }}
-    >
-      <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: `${color}99` }}>
-        {label}
-      </span>
-      <span className="text-xl font-black tabular-nums leading-none" style={{ color }}>
-        {value}
-      </span>
-      {sublabel && (
-        <span className="text-[10px] font-medium" style={{ color: `${color}70` }}>{sublabel}</span>
-      )}
-    </div>
-  )
-}
 
 // ─── Expanded stats ───────────────────────────────────────────────────────────
 
@@ -207,113 +162,95 @@ function ExpandedStats({ game, role }: { game: Game; role?: string }) {
   const cspm = game.cs != null && dur > 0 ? (game.cs / (dur / 60)) : null
   const gpm  = game.gold_earned && dur > 0 ? Math.round(game.gold_earned / (dur / 60)) : null
   const tip  = getTip(game, role)
-  const isWin = game.result === "win"
-  const accent = isWin ? "#4cd6ff" : "#f87171"
-
   const isSupport = r === "SUPPORT"
 
-  // Hero gauge data
-  const heroGauge = isSupport
-    ? game.vision_score != null ? { v: String(game.vision_score), lbl: "Vision", q: visionQ(game.vision_score) } : null
-    : cspm != null              ? { v: cspm.toFixed(1), lbl: "CS / min", q: csQ(cspm) } : null
+  // Build gauge list dynamically based on role
+  const gauges: { value: string; label: string; quality: Q }[] = []
+
+  if (isSupport) {
+    if (game.vision_score != null)
+      gauges.push({ value: String(game.vision_score), label: "Vision", quality: visionQ(game.vision_score) })
+    if (game.wards_placed != null) {
+      const q: Q = game.wards_placed >= 15
+        ? { label: "Excellent", color: "#34d399", pct: Math.min(game.wards_placed / 40, 1) }
+        : game.wards_placed >= 10
+        ? { label: "Good",      color: "#fb923c", pct: game.wards_placed / 40 }
+        : { label: "Low",       color: "#f87171", pct: Math.max(game.wards_placed / 40, 0.05) }
+      gauges.push({ value: String(game.wards_placed), label: "Wards", quality: q })
+    }
+    if (game.control_wards != null) {
+      const q: Q = game.control_wards >= 3
+        ? { label: "Great",    color: "#34d399", pct: Math.min(game.control_wards / 5, 1) }
+        : game.control_wards >= 2
+        ? { label: "Ok",       color: "#fb923c", pct: game.control_wards / 5 }
+        : { label: "Buy more", color: "#f87171", pct: Math.max(game.control_wards / 5, 0.05) }
+      gauges.push({ value: String(game.control_wards), label: "Control", quality: q })
+    }
+    if (game.cc_score != null && game.cc_score > 0) {
+      const q: Q = game.cc_score >= 30
+        ? { label: "High",    color: "#34d399", pct: Math.min(game.cc_score / 60, 1) }
+        : game.cc_score >= 10
+        ? { label: "Average", color: "#fb923c", pct: game.cc_score / 60 }
+        : { label: "Low",     color: "#f87171", pct: Math.max(game.cc_score / 60, 0.05) }
+      gauges.push({ value: `${game.cc_score}s`, label: "CC", quality: q })
+    }
+    if (game.heal_shield != null && game.heal_shield > 0) {
+      const q: Q = game.heal_shield >= 5000
+        ? { label: "Strong",  color: "#34d399", pct: Math.min(game.heal_shield / 15000, 1) }
+        : game.heal_shield >= 3000
+        ? { label: "Average", color: "#fb923c", pct: game.heal_shield / 15000 }
+        : { label: "Low",     color: "#f87171", pct: Math.max(game.heal_shield / 15000, 0.05) }
+      gauges.push({ value: fmt(game.heal_shield), label: "Heal+Shield", quality: q })
+    }
+    if (gpm != null) {
+      const q: Q = gpm >= 350
+        ? { label: "Strong",  color: "#fbbf24", pct: Math.min(gpm / 450, 1) }
+        : { label: "Average", color: "#fbbf2488", pct: gpm / 450 }
+      gauges.push({ value: String(gpm), label: "Gold/min", quality: q })
+    }
+  } else {
+    if (cspm != null) {
+      gauges.push({ value: cspm.toFixed(1), label: "CS/min", quality: csQ(cspm) })
+    }
+    if (game.damage_to_champs != null) {
+      gauges.push({ value: fmt(game.damage_to_champs), label: "Damage", quality: dmgQ(game.damage_to_champs) })
+    }
+    if (game.vision_score != null) {
+      gauges.push({ value: String(game.vision_score), label: "Vision", quality: visionQ(game.vision_score) })
+    }
+    if (gpm != null) {
+      const q: Q = gpm >= 350
+        ? { label: "Strong",  color: "#fbbf24", pct: Math.min(gpm / 450, 1) }
+        : gpm >= 280
+        ? { label: "Average", color: "#fb923c", pct: gpm / 450 }
+        : { label: "Low",     color: "#f87171", pct: Math.max(gpm / 450, 0.05) }
+      gauges.push({ value: String(gpm), label: "Gold/min", quality: q })
+    }
+    if (game.wards_placed != null) {
+      const q: Q = { label: "Wards", color: "#818cf8", pct: Math.min(game.wards_placed / 40, 1) }
+      gauges.push({ value: String(game.wards_placed), label: "Wards", quality: q })
+    }
+    if (game.control_wards != null) {
+      const q: Q = game.control_wards >= 2
+        ? { label: "Good", color: "#34d399", pct: Math.min(game.control_wards / 5, 1) }
+        : { label: "Low",  color: "#fb923c", pct: Math.max(game.control_wards / 5, 0.05) }
+      gauges.push({ value: String(game.control_wards), label: "Control", quality: q })
+    }
+  }
 
   return (
     <div
       className="px-5 pb-5 pt-5 border-t border-white/[0.05] space-y-4"
       style={{ background: "linear-gradient(180deg, rgba(14,15,20,0.8) 0%, rgba(10,11,15,0.95) 100%)" }}
     >
-      {/* Top: gauge + stat chips side by side */}
-      <div className="flex items-start gap-5">
-
-        {/* Arc gauge */}
-        {heroGauge && (
-          <div className="shrink-0">
-            <ArcGauge value={heroGauge.v} label={heroGauge.lbl} quality={heroGauge.q} />
-          </div>
-        )}
-
-        {/* Stat chips grid */}
-        <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-2 min-w-0">
-          {isSupport ? (
-            <>
-              {game.wards_placed != null && (
-                <StatChip label="Wards" value={String(game.wards_placed)}
-                  color={game.wards_placed>=15?"#34d399":game.wards_placed>=10?"#fb923c":"#f87171"}
-                  sublabel={game.wards_placed>=15?"Excellent":game.wards_placed>=10?"Good":"Low"} />
-              )}
-              {game.control_wards != null && (
-                <StatChip label="Control" value={String(game.control_wards)}
-                  color={game.control_wards>=3?"#34d399":game.control_wards>=2?"#fb923c":"#f87171"}
-                  sublabel={game.control_wards>=3?"Great":game.control_wards>=2?"Ok":"Buy more"} />
-              )}
-              {game.wards_killed != null && (
-                <StatChip label="Cleared" value={String(game.wards_killed)} color="#818cf8" />
-              )}
-              {game.cc_score != null && game.cc_score > 0 && (
-                <StatChip label="CC Tijd" value={`${game.cc_score}s`}
-                  color={game.cc_score>=30?"#34d399":game.cc_score>=10?"#fb923c":"#f87171"}
-                  sublabel={game.cc_score>=30?"High impact":"Low"} />
-              )}
-              {game.heal_shield != null && game.heal_shield > 0 && (
-                <StatChip label="Heal+Shield" value={fmt(game.heal_shield)}
-                  color={game.heal_shield>=5000?"#34d399":game.heal_shield>=3000?"#fb923c":"#f87171"} />
-              )}
-              {gpm != null && (
-                <StatChip label="Gold/min" value={String(gpm)} color="#fbbf24" />
-              )}
-            </>
-          ) : (
-            <>
-              {game.damage_to_champs != null && (() => {
-                const q = dmgQ(game.damage_to_champs!)
-                return <StatChip label="Damage" value={fmt(game.damage_to_champs!)} color={q.color} sublabel={q.label} />
-              })()}
-              {gpm != null && (
-                <StatChip label="Gold/min" value={String(gpm)}
-                  color={gpm>=350?"#34d399":gpm>=280?"#fb923c":"#f87171"}
-                  sublabel={gpm>=350?"Strong":gpm>=280?"Average":"Low"} />
-              )}
-              {game.vision_score != null && (
-                <StatChip label="Vision" value={String(game.vision_score)}
-                  color={visionQ(game.vision_score).color}
-                  sublabel={visionQ(game.vision_score).label} />
-              )}
-              {game.wards_placed != null && (
-                <StatChip label="Wards" value={String(game.wards_placed)} color="#818cf8" />
-              )}
-              {game.control_wards != null && (
-                <StatChip label="Control" value={String(game.control_wards)}
-                  color={game.control_wards>=2?"#34d399":"#fb923c"} />
-              )}
-            </>
-          )}
+      {/* Arc gauges row */}
+      {gauges.length > 0 && (
+        <div className="flex flex-wrap gap-4">
+          {gauges.map((g, i) => (
+            <ArcGauge key={i} value={g.value} label={g.label} quality={g.quality} />
+          ))}
         </div>
-      </div>
-
-      {/* Bar section */}
-      <div
-        className="rounded-xl border p-4 space-y-2.5"
-        style={{
-          background: "rgba(255,255,255,0.02)",
-          borderColor: "rgba(255,255,255,0.06)",
-        }}
-      >
-        {isSupport ? (
-          <>
-            {game.vision_score != null && <StatBar label="Vision Score" value={String(game.vision_score)} pct={Math.min(game.vision_score/80,1)} color={visionQ(game.vision_score).color} />}
-            {game.wards_placed != null && <StatBar label="Wards geplaatst" value={String(game.wards_placed)} pct={Math.min(game.wards_placed/40,1)} color={game.wards_placed>=15?"#34d399":"#fb923c"} />}
-            {game.heal_shield != null && game.heal_shield > 0 && <StatBar label="Heal + Shield" value={fmt(game.heal_shield)} pct={Math.min(game.heal_shield/15000,1)} color="#34d399" />}
-            {game.cc_score != null && game.cc_score > 0 && <StatBar label="CC toegepast" value={`${game.cc_score}s`} pct={Math.min(game.cc_score/60,1)} color="#818cf8" />}
-          </>
-        ) : (
-          <>
-            {cspm != null && <StatBar label="CS / min" value={cspm.toFixed(1)} pct={Math.min(parseFloat(cspm.toFixed(1))/10,1)} color={csQ(parseFloat(cspm.toFixed(1))).color} />}
-            {game.damage_to_champs != null && <StatBar label="Damage to champions" value={fmt(game.damage_to_champs)} pct={dmgQ(game.damage_to_champs).pct} color={dmgQ(game.damage_to_champs).color} />}
-            {gpm != null && <StatBar label="Gold / min" value={String(gpm)} pct={Math.min(gpm/450,1)} color="#fbbf24" />}
-            {game.vision_score != null && <StatBar label="Vision Score" value={String(game.vision_score)} pct={Math.min(game.vision_score/60,1)} color="#818cf8" />}
-          </>
-        )}
-      </div>
+      )}
 
       {/* Tip */}
       {tip && (
