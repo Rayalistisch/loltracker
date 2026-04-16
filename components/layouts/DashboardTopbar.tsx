@@ -36,7 +36,7 @@ export function DashboardTopbar({ profile, onMobileMenuOpen }: DashboardTopbarPr
     : "LT"
 
   return (
-    <header className="h-14 flex items-center justify-between px-6 border-b border-border bg-background/80 backdrop-blur-sm">
+    <header className="h-14 flex items-center justify-between px-6 border-border bg-background/280 backdrop-blur-sm">
       {/* Mobile menu button */}
       <button
         className="md:hidden text-muted-foreground hover:text-foreground transition-colors"

@@ -2,7 +2,6 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getActiveSession } from "@/services/session.service"
-import { PageHeader } from "@/components/layouts/PageHeader"
 import { PreGameCheckinForm } from "@/components/features/session/PreGameCheckinForm"
 
 export const metadata: Metadata = { title: "Start Session" }
@@ -25,11 +24,7 @@ export default async function NewSessionPage() {
     .single()
 
   return (
-    <div className="max-w-xl mx-auto">
-      <PageHeader
-        title="Start a session"
-        description="Check in before you queue. Takes 30 seconds."
-      />
+    <div className="max-w-3xl mx-auto px-6 py-8">
       <PreGameCheckinForm
         currentRank={profile?.current_rank ?? null}
         defaultRole={profile?.main_role ?? "FILL"}

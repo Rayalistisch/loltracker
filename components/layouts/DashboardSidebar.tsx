@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   LayoutDashboard,
   Swords,
@@ -10,67 +10,21 @@ import {
   Users2,
   User,
   Settings,
-  Brain,
   Target,
   LogOut,
-  ChevronRight,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
 import type { PlayerProfile } from "@/types/domain"
 
 const NAV_ITEMS = [
-  {
-    label: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    label: "Sessions",
-    href: "/session/history",
-    icon: Swords,
-    subItems: [
-      { label: "Start Session", href: "/session/new" },
-      { label: "History", href: "/session/history" },
-    ],
-  },
-  {
-    label: "Analytics",
-    href: "/analytics",
-    icon: BarChart3,
-    subItems: [
-      { label: "Overview", href: "/analytics" },
-      { label: "Tilt Analysis", href: "/analytics/tilt" },
-    ],
-  },
-  {
-    label: "Accountability",
-    href: "/accountability",
-    icon: Target,
-  },
-  {
-    label: "Find Duo",
-    href: "/duo",
-    icon: Users2,
-    subItems: [
-      { label: "Duo Hub", href: "/duo" },
-      { label: "Find Partner", href: "/duo/find" },
-      { label: "Requests", href: "/duo/requests" },
-      { label: "Saved", href: "/duo/saved" },
-    ],
-  },
-  {
-    label: "Profile",
-    href: "/profile",
-    icon: User,
-  },
-  {
-    label: "Settings",
-    href: "/settings/account",
-    icon: Settings,
-  },
+  { label: "Dashboard",     href: "/dashboard",         icon: LayoutDashboard },
+  { label: "Sessions",      href: "/session/history",   icon: Swords          },
+  { label: "Analytics",     href: "/analytics",         icon: BarChart3       },
+  { label: "Accountability",href: "/accountability",    icon: Target          },
+  { label: "Find Duo",      href: "/duo",               icon: Users2          },
+  { label: "Profile",       href: "/profile",           icon: User            },
+  { label: "Settings",      href: "/settings/account",  icon: Settings        },
 ]
 
 interface DashboardSidebarProps {
@@ -79,7 +33,7 @@ interface DashboardSidebarProps {
 
 export function DashboardSidebar({ profile }: DashboardSidebarProps) {
   const pathname = usePathname()
-  const router = useRouter()
+  const router   = useRouter()
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -88,105 +42,120 @@ export function DashboardSidebar({ profile }: DashboardSidebarProps) {
     router.refresh()
   }
 
+  const displayName = profile?.displayName ?? profile?.username ?? "Summoner"
+  const rankLabel   = profile?.currentRank ?? "Unranked"
+
   return (
-    <aside className="flex flex-col w-64 h-full bg-sidebar border-r border-sidebar-border">
-      {/* Logo */}
-      <div className="flex items-center gap-2.5 px-4 py-4 border-b border-sidebar-border">
-        <Image
-          src="/lol_tracker.png"
-          alt="Loltracker"
-          width={50}
-          height={50}
-          className="object-contain shrink-0"
-          priority
-        />
-        <span className="text-lg font-bold tracking-tight text-sidebar-foreground">LoLTracker</span>
+    <aside
+      className="flex flex-col w-64 h-full relative"
+      style={{
+        background: "rgba(10,12,18,0.85)",
+        backdropFilter: "blur(24px)",
+        borderRight: "1px solid rgba(76,214,255,0.08)",
+      }}
+    >
+      {/* Atmospheric glow */}
+      <div
+        className="absolute bottom-0 left-0 w-48 h-48 pointer-events-none -z-10"
+        style={{ background: "radial-gradient(circle, rgba(76,214,255,0.04) 0%, transparent 70%)" }}
+      />
+
+      {/* ── Profile section ─────────────────────────────────────────────── */}
+      <div
+        className="flex items-center gap-3 px-5 py-5"
+      >
+        {/* Avatar */}
+        <div
+          className="w-10 h-10 rounded border-2 overflow-hidden shrink-0 flex items-center justify-center"
+          style={{ borderColor: "rgba(76,214,255,0.25)", background: "rgba(30,31,37,0.8)" }}
+        >
+          {profile?.avatarUrl ? (
+            <Image
+              src={profile.avatarUrl}
+              alt={displayName}
+              width={40}
+              height={40}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <Image
+              src="/lol_tracker.png"
+              alt="LoLTracker"
+              width={28}
+              height={28}
+              className="object-contain"
+              priority
+            />
+          )}
+        </div>
+
+        {/* Name + rank */}
+        <div className="min-w-0">
+          <p
+            className="text-xs font-black tracking-widest uppercase truncate leading-tight"
+            style={{ color: "#a4e6ff" }}
+          >
+            {displayName}
+          </p>
+          <p className="text-[9px] uppercase tracking-widest text-muted-foreground/50 mt-0.5 truncate">
+            {rankLabel}
+          </p>
+        </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {NAV_ITEMS.map((item) => {
-          const isActive =
-            pathname === item.href || pathname.startsWith(item.href + "/")
-          const Icon = item.icon
+      {/* ── Navigation ──────────────────────────────────────────────────── */}
+      <nav className="flex-1 py-4 overflow-y-auto">
+        {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
+          const isActive = pathname === href || pathname.startsWith(href + "/")
 
           return (
-            <div key={item.href}>
-              <Link
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-sidebar-accent text-sidebar-primary"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent/60"
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span className="flex-1">{item.label}</span>
-                {item.subItems && (
-                  <ChevronRight
-                    className={cn(
-                      "h-3.5 w-3.5 transition-transform",
-                      isActive && "rotate-90"
-                    )}
-                  />
-                )}
-              </Link>
-
-              {/* Sub-items shown when parent is active */}
-              {isActive && item.subItems && (
-                <div className="ml-7 mt-0.5 space-y-0.5">
-                  {item.subItems.map((sub) => {
-                    const isSubActive = pathname === sub.href
-                    return (
-                      <Link
-                        key={sub.href}
-                        href={sub.href}
-                        className={cn(
-                          "block px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
-                          isSubActive
-                            ? "text-sidebar-primary"
-                            : "text-sidebar-foreground hover:text-sidebar-foreground"
-                        )}
-                      >
-                        {sub.label}
-                      </Link>
-                    )
-                  })}
-                </div>
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                "flex items-center gap-4 py-3 px-6 transition-all duration-200 border-l-4",
+                isActive
+                  ? "border-[#4cd6ff] bg-[rgba(76,214,255,0.07)] text-[#a4e6ff]"
+                  : "border-transparent text-muted-foreground/40 hover:text-[#a4e6ff]/80 hover:bg-[rgba(76,214,255,0.04)]"
               )}
-            </div>
+            >
+              <Icon
+                className="h-4 w-4 shrink-0"
+                style={isActive ? { filter: "drop-shadow(0 0 4px rgba(76,214,255,0.5))" } : undefined}
+              />
+              <span className="text-xs font-black tracking-widest uppercase">
+                {label}
+              </span>
+            </Link>
           )
         })}
       </nav>
 
-      {/* User section */}
-      <div className="px-3 pb-4 border-t border-sidebar-border pt-3">
-        {profile && (
-          <div className="flex items-center gap-3 px-3 py-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-              <User className="h-4 w-4 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-sidebar-foreground truncate">
-                {profile.displayName}
-              </p>
-              <p className="text-xs text-sidebar-foreground truncate">
-                {profile.currentRank ?? "Unranked"}
-              </p>
-            </div>
-          </div>
-        )}
-
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent/60"
+      {/* ── Bottom: sign out + new session ──────────────────────────────── */}
+      <div
+        className="px-5 pb-6 pt-4 border-t space-y-3"
+        style={{ borderColor: "rgba(76,214,255,0.08)" }}
+      >
+        <button
           onClick={handleSignOut}
+          className="flex items-center gap-3 w-full py-2 px-1 text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
         >
-          <LogOut className="mr-2 h-4 w-4" />
-          Sign Out
-        </Button>
+          <LogOut className="h-3.5 w-3.5 shrink-0" />
+          <span className="text-[9px] font-black uppercase tracking-widest">Sign Out</span>
+        </button>
+
+        <Link
+          href="/session/new"
+          className="block w-full py-3 text-center text-xs font-black tracking-widest uppercase transition-all hover:brightness-110"
+          style={{
+            background: "transparent",
+            border: "1px solid rgba(76,214,255,0.35)",
+            color: "#4cd6ff",
+            boxShadow: "0 0 12px rgba(76,214,255,0.08)",
+          }}
+        >
+          NEW SESSION
+        </Link>
       </div>
     </aside>
   )

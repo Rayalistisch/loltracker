@@ -10,6 +10,7 @@ import Image from "next/image"
 import { ArrowLeft, Clock, Calendar, Flag, TrendingUp, TrendingDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { GameRow } from "@/components/features/session/GameRow"
+import { SessionInsights } from "@/components/features/session/SessionInsights"
 
 interface Props {
   params: Promise<{ sessionId: string }>
@@ -24,33 +25,34 @@ function RingGauge({
 }: {
   value: number; max: number; label: string; color: string; unit?: string
 }) {
-  const r   = 36
+  const size = 72
+  const r    = 28
   const circ = 2 * Math.PI * r
   const pct  = Math.min(Math.max(value / max, 0), 1)
   const offset = circ * (1 - pct)
 
   return (
-    <div className="flex flex-col items-center gap-1.5">
-      <div className="relative w-[88px] h-[88px]">
-        <svg width="88" height="88" viewBox="0 0 88 88">
-          <circle cx="44" cy="44" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="7" />
+    <div className="flex flex-col items-center gap-1.5 min-w-0">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="6" />
           <circle
-            cx="44" cy="44" r={r} fill="none"
-            stroke={color} strokeWidth="7"
+            cx={size/2} cy={size/2} r={r} fill="none"
+            stroke={color} strokeWidth="6"
             strokeLinecap="round"
             strokeDasharray={circ}
             strokeDashoffset={offset}
-            transform="rotate(-90 44 44)"
-            style={{ filter: `drop-shadow(0 0 5px ${color}88)`, transition: "stroke-dashoffset 0.6s ease" }}
+            transform={`rotate(-90 ${size/2} ${size/2})`}
+            style={{ filter: `drop-shadow(0 0 4px ${color}88)` }}
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-base font-black tabular-nums leading-none" style={{ color }}>
+          <span className="text-sm font-black tabular-nums leading-none" style={{ color }}>
             {value}{unit}
           </span>
         </div>
       </div>
-      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
+      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground text-center leading-tight">{label}</span>
     </div>
   )
 }
@@ -243,7 +245,7 @@ export default async function SessionDetailPage({ params }: Props) {
 
         {/* Gauges panel */}
         <div
-          className="rounded-xl border p-5 flex flex-col justify-between"
+          className="rounded-xl border p-5 flex flex-col justify-between min-w-0"
           style={{
             background: "rgba(30,31,37,0.6)",
             backdropFilter: "blur(12px)",
@@ -255,7 +257,7 @@ export default async function SessionDetailPage({ params }: Props) {
             Session Performance
           </p>
 
-          <div className="flex justify-around">
+          <div className="grid grid-cols-3 gap-2">
             <RingGauge
               value={wr}
               max={100}
@@ -334,6 +336,16 @@ export default async function SessionDetailPage({ params }: Props) {
             ))}
           </div>
         </div>
+      )}
+
+      {/* ── Session insights ─────────────────────────────────────────────────── */}
+      {games && games.length > 0 && (
+        <SessionInsights
+          games={games as Parameters<typeof SessionInsights>[0]["games"]}
+          role={role}
+          checkin={checkin ?? null}
+          reflection={reflection ?? null}
+        />
       )}
 
       {/* ── Check-in + Reflection ─────────────────────────────────────────────── */}

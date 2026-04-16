@@ -172,6 +172,33 @@ function ChampIcon({ name }: { name: string }) {
   )
 }
 
+// ─── Stat chip (mini glass card) ─────────────────────────────────────────────
+
+function StatChip({ label, value, color, sublabel }: {
+  label: string; value: string; color: string; sublabel?: string
+}) {
+  return (
+    <div
+      className="rounded-xl p-3 flex flex-col gap-1 border"
+      style={{
+        background: `linear-gradient(135deg, ${color}10 0%, rgba(20,21,26,0.8) 100%)`,
+        borderColor: `${color}25`,
+        boxShadow: `inset 0 1px 0 ${color}15`,
+      }}
+    >
+      <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: `${color}99` }}>
+        {label}
+      </span>
+      <span className="text-xl font-black tabular-nums leading-none" style={{ color }}>
+        {value}
+      </span>
+      {sublabel && (
+        <span className="text-[10px] font-medium" style={{ color: `${color}70` }}>{sublabel}</span>
+      )}
+    </div>
+  )
+}
+
 // ─── Expanded stats ───────────────────────────────────────────────────────────
 
 function ExpandedStats({ game, role }: { game: Game; role?: string }) {
@@ -180,63 +207,137 @@ function ExpandedStats({ game, role }: { game: Game; role?: string }) {
   const cspm = game.cs != null && dur > 0 ? (game.cs / (dur / 60)) : null
   const gpm  = game.gold_earned && dur > 0 ? Math.round(game.gold_earned / (dur / 60)) : null
   const tip  = getTip(game, role)
+  const isWin = game.result === "win"
+  const accent = isWin ? "#4cd6ff" : "#f87171"
 
   const isSupport = r === "SUPPORT"
+
+  // Hero gauge data
   const heroGauge = isSupport
-    ? game.vision_score != null ? { v: String(game.vision_score), lbl: "Vision",  q: visionQ(game.vision_score) } : null
-    : cspm != null              ? { v: cspm.toFixed(1),           lbl: "CS/min",  q: csQ(cspm) } : null
+    ? game.vision_score != null ? { v: String(game.vision_score), lbl: "Vision", q: visionQ(game.vision_score) } : null
+    : cspm != null              ? { v: cspm.toFixed(1), lbl: "CS / min", q: csQ(cspm) } : null
 
   return (
     <div
-      className="px-5 pb-5 pt-4 border-t border-white/[0.05] grid grid-cols-1 md:grid-cols-[160px_1fr] gap-5"
-      style={{ background: "linear-gradient(180deg, oklch(0.13 0 0 / 50%), oklch(0.10 0 0 / 80%))" }}
+      className="px-5 pb-5 pt-5 border-t border-white/[0.05] space-y-4"
+      style={{ background: "linear-gradient(180deg, rgba(14,15,20,0.8) 0%, rgba(10,11,15,0.95) 100%)" }}
     >
-      {/* Gauge */}
-      {heroGauge && (
-        <div className="flex justify-center md:justify-start items-start pt-1">
-          <ArcGauge value={heroGauge.v} label={heroGauge.lbl} quality={heroGauge.q} />
-        </div>
-      )}
+      {/* Top: gauge + stat chips side by side */}
+      <div className="flex items-start gap-5">
 
-      {/* Bars */}
-      <div className="space-y-2.5">
+        {/* Arc gauge */}
+        {heroGauge && (
+          <div className="shrink-0">
+            <ArcGauge value={heroGauge.v} label={heroGauge.lbl} quality={heroGauge.q} />
+          </div>
+        )}
+
+        {/* Stat chips grid */}
+        <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-2 min-w-0">
+          {isSupport ? (
+            <>
+              {game.wards_placed != null && (
+                <StatChip label="Wards" value={String(game.wards_placed)}
+                  color={game.wards_placed>=15?"#34d399":game.wards_placed>=10?"#fb923c":"#f87171"}
+                  sublabel={game.wards_placed>=15?"Excellent":game.wards_placed>=10?"Good":"Low"} />
+              )}
+              {game.control_wards != null && (
+                <StatChip label="Control" value={String(game.control_wards)}
+                  color={game.control_wards>=3?"#34d399":game.control_wards>=2?"#fb923c":"#f87171"}
+                  sublabel={game.control_wards>=3?"Great":game.control_wards>=2?"Ok":"Buy more"} />
+              )}
+              {game.wards_killed != null && (
+                <StatChip label="Cleared" value={String(game.wards_killed)} color="#818cf8" />
+              )}
+              {game.cc_score != null && game.cc_score > 0 && (
+                <StatChip label="CC Tijd" value={`${game.cc_score}s`}
+                  color={game.cc_score>=30?"#34d399":game.cc_score>=10?"#fb923c":"#f87171"}
+                  sublabel={game.cc_score>=30?"High impact":"Low"} />
+              )}
+              {game.heal_shield != null && game.heal_shield > 0 && (
+                <StatChip label="Heal+Shield" value={fmt(game.heal_shield)}
+                  color={game.heal_shield>=5000?"#34d399":game.heal_shield>=3000?"#fb923c":"#f87171"} />
+              )}
+              {gpm != null && (
+                <StatChip label="Gold/min" value={String(gpm)} color="#fbbf24" />
+              )}
+            </>
+          ) : (
+            <>
+              {game.damage_to_champs != null && (() => {
+                const q = dmgQ(game.damage_to_champs!)
+                return <StatChip label="Damage" value={fmt(game.damage_to_champs!)} color={q.color} sublabel={q.label} />
+              })()}
+              {gpm != null && (
+                <StatChip label="Gold/min" value={String(gpm)}
+                  color={gpm>=350?"#34d399":gpm>=280?"#fb923c":"#f87171"}
+                  sublabel={gpm>=350?"Strong":gpm>=280?"Average":"Low"} />
+              )}
+              {game.vision_score != null && (
+                <StatChip label="Vision" value={String(game.vision_score)}
+                  color={visionQ(game.vision_score).color}
+                  sublabel={visionQ(game.vision_score).label} />
+              )}
+              {game.wards_placed != null && (
+                <StatChip label="Wards" value={String(game.wards_placed)} color="#818cf8" />
+              )}
+              {game.control_wards != null && (
+                <StatChip label="Control" value={String(game.control_wards)}
+                  color={game.control_wards>=2?"#34d399":"#fb923c"} />
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Bar section */}
+      <div
+        className="rounded-xl border p-4 space-y-2.5"
+        style={{
+          background: "rgba(255,255,255,0.02)",
+          borderColor: "rgba(255,255,255,0.06)",
+        }}
+      >
         {isSupport ? (
           <>
-            {game.wards_placed != null && <StatBar label="Wards geplaatst" value={String(game.wards_placed)} pct={Math.min(game.wards_placed/40,1)} color={game.wards_placed>=15?"#34d399":game.wards_placed>=10?"#fb923c":"#f87171"} />}
-            {game.control_wards != null && <StatBar label="Control wards"  value={String(game.control_wards)} pct={Math.min(game.control_wards/8,1)} color={game.control_wards>=3?"#34d399":game.control_wards>=2?"#fb923c":"#f87171"} />}
-            {game.wards_killed != null && <StatBar label="Wards gecleared"  value={String(game.wards_killed)} pct={Math.min(game.wards_killed/15,1)} color="#818cf8" />}
-            {game.heal_shield != null && game.heal_shield > 0 && <StatBar label="Heal + Shield" value={fmt(game.heal_shield)} pct={Math.min(game.heal_shield/15000,1)} color={game.heal_shield>=5000?"#34d399":game.heal_shield>=3000?"#fb923c":"#f87171"} />}
-            {game.cc_score != null && game.cc_score > 0 && <StatBar label="CC toegepast" value={`${game.cc_score}s`} pct={Math.min(game.cc_score/60,1)} color={game.cc_score>=30?"#34d399":game.cc_score>=10?"#fb923c":"#f87171"} />}
-            {gpm != null && <StatBar label="Gold / min" value={String(gpm)} pct={Math.min(gpm/400,1)} color="#fbbf24" />}
+            {game.vision_score != null && <StatBar label="Vision Score" value={String(game.vision_score)} pct={Math.min(game.vision_score/80,1)} color={visionQ(game.vision_score).color} />}
+            {game.wards_placed != null && <StatBar label="Wards geplaatst" value={String(game.wards_placed)} pct={Math.min(game.wards_placed/40,1)} color={game.wards_placed>=15?"#34d399":"#fb923c"} />}
+            {game.heal_shield != null && game.heal_shield > 0 && <StatBar label="Heal + Shield" value={fmt(game.heal_shield)} pct={Math.min(game.heal_shield/15000,1)} color="#34d399" />}
+            {game.cc_score != null && game.cc_score > 0 && <StatBar label="CC toegepast" value={`${game.cc_score}s`} pct={Math.min(game.cc_score/60,1)} color="#818cf8" />}
           </>
         ) : (
           <>
-            {game.damage_to_champs != null && (() => { const q = dmgQ(game.damage_to_champs!); return <StatBar label="Damage to champions" value={fmt(game.damage_to_champs!)} pct={q.pct} color={q.color} /> })()}
-            {gpm != null && <StatBar label="Gold / min" value={String(gpm)} pct={Math.min(gpm/450,1)} color={gpm>=350?"#34d399":gpm>=280?"#fb923c":"#f87171"} />}
-            {game.vision_score != null && <StatBar label="Vision score"   value={String(game.vision_score)} pct={Math.min(game.vision_score/60,1)} color="#818cf8" />}
-            {game.wards_placed != null && <StatBar label="Wards geplaatst" value={String(game.wards_placed)} pct={Math.min(game.wards_placed/20,1)} color="#818cf8" />}
-            {game.control_wards != null && <StatBar label="Control wards"  value={String(game.control_wards)} pct={Math.min(game.control_wards/6,1)} color={game.control_wards>=2?"#34d399":"#fb923c"} />}
+            {cspm != null && <StatBar label="CS / min" value={cspm.toFixed(1)} pct={Math.min(parseFloat(cspm.toFixed(1))/10,1)} color={csQ(parseFloat(cspm.toFixed(1))).color} />}
+            {game.damage_to_champs != null && <StatBar label="Damage to champions" value={fmt(game.damage_to_champs)} pct={dmgQ(game.damage_to_champs).pct} color={dmgQ(game.damage_to_champs).color} />}
+            {gpm != null && <StatBar label="Gold / min" value={String(gpm)} pct={Math.min(gpm/450,1)} color="#fbbf24" />}
+            {game.vision_score != null && <StatBar label="Vision Score" value={String(game.vision_score)} pct={Math.min(game.vision_score/60,1)} color="#818cf8" />}
           </>
         )}
-
-        {/* Tip */}
-        {tip && (
-          <div className={cn(
-            "flex items-start gap-2.5 px-3 py-2.5 rounded-lg border text-sm mt-1",
-            tip.priority === "high" ? "bg-orange-500/8 border-orange-500/20 text-orange-200" : "bg-primary/8 border-primary/20 text-blue-200"
-          )}>
-            {tip.priority === "high"
-              ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-orange-400" />
-              : <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-400" />}
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wide opacity-60 mb-0.5">
-                Tip{role ? ` · ${role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()}` : ""}
-              </p>
-              <p className="leading-snug">{tip.text}</p>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Tip */}
+      {tip && (
+        <div
+          className="rounded-xl border p-4 flex items-start gap-3"
+          style={{
+            background: tip.priority === "high"
+              ? "linear-gradient(135deg, rgba(251,146,60,0.08), rgba(20,21,26,0.9))"
+              : "linear-gradient(135deg, rgba(76,214,255,0.06), rgba(20,21,26,0.9))",
+            borderColor: tip.priority === "high" ? "rgba(251,146,60,0.2)" : "rgba(76,214,255,0.15)",
+          }}
+        >
+          {tip.priority === "high"
+            ? <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-orange-400" />
+            : <Info className="h-4 w-4 shrink-0 mt-0.5 text-cyan-400" />}
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-widest mb-1"
+              style={{ color: tip.priority === "high" ? "#fb923c99" : "#4cd6ff99" }}>
+              Tip{role ? ` · ${role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()}` : ""}
+            </p>
+            <p className="text-sm leading-relaxed text-foreground/90">{tip.text}</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

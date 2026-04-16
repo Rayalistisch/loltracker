@@ -53,14 +53,26 @@ export default async function DashboardLayout({
     : null
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen overflow-hidden relative">
+
+      {/* Background image */}
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
+        style={{ backgroundImage: "url('/bg-dashboard.jpg')" }}
+      />
+      {/* Dark overlay */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: "rgba(8,9,14,0.87)" }}
+      />
+
       {/* Sidebar — desktop */}
-      <div className="hidden md:flex md:shrink-0">
+      <div className="hidden md:flex md:shrink-0 relative z-10">
         <DashboardSidebar profile={profile} />
       </div>
 
       {/* Main content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden relative z-10">
         <DashboardTopbar profile={profile} />
         <main className="flex-1 overflow-y-auto">
           {children}
