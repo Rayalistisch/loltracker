@@ -12,6 +12,8 @@ import {
   BarChart2,
   MessageSquare,
   Star,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react"
 import { toast } from "sonner"
 import { postGameReflectionFormSchema, type PostGameReflectionFormInput } from "@/lib/validators/session"
@@ -85,6 +87,7 @@ export function PostGameReflectionForm({
       followedStopCondition: true,
       mentalStateEnd: 3,
       tiltMoments: 0,
+      lpDelta: null,
       biggestMistake: "",
       whatWentWell: "",
       improvementFocus: "",
@@ -105,6 +108,7 @@ export function PostGameReflectionForm({
           gamesWon,
           gamesLost,
           checkinMentalState,
+          lpDelta: values.lpDelta ?? undefined,
         }),
       })
       const data = await res.json()
@@ -185,6 +189,53 @@ export function PostGameReflectionForm({
                     <div className="text-xs text-muted-foreground">Total</div>
                   </div>
                 </div>
+
+                {/* LP Delta */}
+                <FormField
+                  control={form.control}
+                  name="lpDelta"
+                  render={({ field }) => {
+                    const val = field.value ?? null
+                    const isPositive = val !== null && val > 0
+                    const isNegative = val !== null && val < 0
+                    return (
+                      <FormItem>
+                        <FormLabel>LP change this session <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                        <FormControl>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => field.onChange(val !== null ? val - 1 : -1)}
+                              className="w-9 h-9 rounded-lg border border-border/50 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-border transition-colors shrink-0"
+                            >
+                              <TrendingDown className="h-4 w-4" />
+                            </button>
+                            <input
+                              type="number"
+                              value={val ?? ""}
+                              onChange={e => field.onChange(e.target.value === "" ? null : parseInt(e.target.value))}
+                              placeholder="e.g. +30 or -15"
+                              className={cn(
+                                "flex-1 h-9 rounded-lg border bg-transparent px-3 text-center text-sm font-semibold tabular-nums transition-colors",
+                                "placeholder:text-muted-foreground placeholder:font-normal",
+                                isPositive ? "border-[oklch(0.60_0.20_258/50%)] text-[oklch(0.72_0.18_258)]" :
+                                isNegative ? "border-[oklch(0.62_0.22_22/50%)] text-[oklch(0.72_0.18_22)]" :
+                                "border-border/50 text-foreground"
+                              )}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => field.onChange(val !== null ? val + 1 : 1)}
+                              className="w-9 h-9 rounded-lg border border-border/50 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-border transition-colors shrink-0"
+                            >
+                              <TrendingUp className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </FormControl>
+                      </FormItem>
+                    )
+                  }}
+                />
 
                 <FormField
                   control={form.control}

@@ -21,6 +21,7 @@ export const postGameReflectionFormSchema = z.object({
   followedStopCondition: z.boolean(),
   mentalStateEnd: z.number().int().min(1).max(5),
   tiltMoments: z.number().int().min(0).max(20),
+  lpDelta: z.number().int().optional().nullable(),
   biggestMistake: z.string().optional(),
   whatWentWell: z.string().optional(),
   improvementFocus: z.string().optional(),
